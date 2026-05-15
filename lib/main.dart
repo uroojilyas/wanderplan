@@ -4,7 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'models/trip_model.dart';
 import 'models/expense_model.dart';
 import 'theme.dart';
-import 'screens/login_page.dart';
+import 'screens/landing_page.dart';
 import 'services/storage_service.dart';
 
 void main() async {
@@ -26,7 +26,7 @@ class WanderPlanApp extends StatelessWidget {
       title: 'WanderPlan',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      home: const LoginPage(),
+      home: const LandingPage(),
     );
   }
 }

@@ -1,91 +1,30 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../models/place_model.dart';
+import '../models/trip_model.dart';
 import '../services/opentripmap_service.dart';
-import '../services/location_service.dart';
+import '../services/storage_service.dart';
 import '../widgets/carousel_card.dart';
 import '../widgets/place_card.dart';
-import 'location_page.dart';
-import 'explore_page.dart';
-import 'likes_page.dart';
 import 'profile_page.dart';
+import 'explore_page.dart';
+import 'trips_page.dart';
 
 class HomePage extends StatefulWidget {
   final String username;
-  const HomePage({super.key, required this.username});
+  final String city;
+  final double? lat;
+  final double? lon;
+  const HomePage({super.key, required this.username, required this.city, required this.lat, required this.lon});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentIndex = 0;
-  String _city = 'Detecting...';
-  double? _lat;
-  double? _lon;
-
-  @override
-  void initState() {
-    super.initState();
-    _detectAndLoad();
-  }
-
-  Future<void> _detectAndLoad() async {
-    final coords = await LocationService.getCurrentLatLon();
-    if (!mounted) return;
-    if (coords != null) {
-      _lat = coords[0];
-      _lon = coords[1];
-      final cityName = await LocationService.reverseGeocode(_lat!, _lon!);
-      if (!mounted) return;
-      setState(() => _city = cityName);
-    } else {
-      _lat = 24.8607;
-      _lon = 67.0011;
-      setState(() => _city = 'Karachi, Pakistan');
-    }
-  }
-
-  void _onCitySelected(String city, double lat, double lon) {
-    setState(() {
-      _city = city;
-      _lat = lat;
-      _lon = lon;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _HomeTab(username: widget.username, city: _city, lat: _lat, lon: _lon),
-      LocationPage(onCitySelected: _onCitySelected, currentCity: _city),
-      ExplorePage(lat: _lat, lon: _lon),
-      const LikesPage(),
-      ProfilePage(username: widget.username),
-    ];
-
-    return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, -2))],
-        ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (i) => setState(() => _currentIndex = i),
-          backgroundColor: Colors.white,
-          indicatorColor: AppTheme.primary.withOpacity(0.15),
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-            NavigationDestination(icon: Icon(Icons.location_on_outlined), selectedIcon: Icon(Icons.location_on), label: 'Location'),
-            NavigationDestination(icon: Icon(Icons.explore_outlined), selectedIcon: Icon(Icons.explore), label: 'Explore'),
-            NavigationDestination(icon: Icon(Icons.favorite_outline), selectedIcon: Icon(Icons.favorite), label: 'Likes'),
-            NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
-          ],
-        ),
-      ),
-    );
+    return _HomeTab(username: widget.username, city: widget.city, lat: widget.lat, lon: widget.lon);
   }
 }
 
@@ -162,6 +101,12 @@ class _HomeTabState extends State<_HomeTab> {
       .toList();
 
   bool get _isSearching => _query.isNotEmpty;
+
+  List<Trip> _getRecentTrips() {
+    final trips = StorageService.getAllTrips();
+    trips.sort((a, b) => b.startDate.compareTo(a.startDate));
+    return trips;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -289,11 +234,195 @@ class _HomeTabState extends State<_HomeTab> {
 
           // ── Normal content (hidden when searching) ──
           if (!_isSearching) ...[
+            // ── QUICK ACTIONS ROW ──
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                child: Row(
+                  children: [
+                    // Plan a Trip Card
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const TripsPage(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.luggage_rounded,
+                                  size: 32, color: AppTheme.primary),
+                              const SizedBox(height: 8),
+                              const Text('Plan a Trip',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textDark)),
+                              const SizedBox(height: 4),
+                              const Text('Create your itinerary',
+                                  style: TextStyle(
+                                      fontSize: 11, color: AppTheme.textMid)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Explore Nearby Card
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => Scaffold(
+                                appBar: AppBar(
+                                  title: const Text('Explore'),
+                                  backgroundColor: AppTheme.primary,
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                ),
+                                body: ExplorePage(lat: widget.lat, lon: widget.lon),
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(Icons.explore_rounded,
+                                  size: 32, color: Colors.orange),
+                              const SizedBox(height: 8),
+                              const Text('Explore Nearby',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textDark)),
+                              const SizedBox(height: 4),
+                              const Text('Discover places',
+                                  style: TextStyle(
+                                      fontSize: 11, color: AppTheme.textMid)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── RECENT TRIPS SECTION ──
+            if (_getRecentTrips().isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Recent Trips',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textDark)),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount:
+                              _getRecentTrips().length > 2 ? 2 : _getRecentTrips().length,
+                          itemBuilder: (_, i) {
+                            final trip = _getRecentTrips()[i];
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 12),
+                              child: Container(
+                                width: 150,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.06),
+                                      blurRadius: 8,
+                                    ),
+                                  ],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(trip.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.textDark)),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.location_on,
+                                            size: 12, color: AppTheme.primary),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(trip.destination,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppTheme.textMid)),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(16, 28, 16, 12),
                 child: Text('Popular Destinations',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textDark)),
               ),
             ),
 
