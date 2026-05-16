@@ -51,3 +51,7 @@ build/
 .env
 *.env
 android/app/google-services.json
+
+build/
+.env
+*.env
